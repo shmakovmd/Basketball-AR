@@ -27,7 +27,6 @@ public class ArCameraBehaviour : MonoBehaviour
 
         _audioSource.PlayOneShot(tooCloseSound);
         tooCloseMessage.SetActive(true);
-        Debug.Log("destr fout" + _ballAnimEventHandler.IsDestructiveFadingOut);
         if (!_ballAnimEventHandler.IsDestructiveFadingOut && !_ballAnimEventHandler.IsDelayBeforeDestructiveFadingOut)
             _ballAnimator.Play("BallFadeOut");
         ball.GetComponent<BallBehaviour>().IsTooClose = true;
@@ -39,8 +38,6 @@ public class ArCameraBehaviour : MonoBehaviour
         if (!other.CompareTag("Too Close Trigger")) return;
 
         tooCloseMessage.SetActive(false);
-        Debug.Log("onexit destr fout" + _ballAnimEventHandler.IsDestructiveFadingOut);
-        // Debug.Log("onexit destr fout" + _ballAnimEventHandler.IsDestructiveFadingOut);
         if (!_ballAnimEventHandler.IsDestructiveFadingOut && !_ballAnimEventHandler.IsDelayBeforeDestructiveFadingOut)
             _ballAnimator.Play("BallFadeIn");
         ball.GetComponent<BallBehaviour>().IsTooClose = false;

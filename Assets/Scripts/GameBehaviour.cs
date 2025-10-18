@@ -16,12 +16,19 @@ public class GameBehaviour : MonoBehaviour
     [SerializeField] private AudioClip[] catchSounds;
     [SerializeField] private AudioClip loseSound;
     [SerializeField] private AudioClip newRecordSound;
+    [SerializeField] private GameObject startInfoPanel;
+    [SerializeField] private SaveSystem saveSystem;
 
     private bool _isGameSession;
     private bool _newRecord;
 
     private int _record;
     private int _score;
+
+    private void Start()
+    {
+        recordText.text = (_record = saveSystem.gameData.record).ToString();
+    }
 
     public async void Goal()
     {
@@ -40,8 +47,9 @@ public class GameBehaviour : MonoBehaviour
                     audioSource.PlayOneShot(newRecordSound);
                 }
 
-                recordText.text = (_record = _score).ToString();
+                recordText.text = (saveSystem.gameData.record = _record = _score).ToString();
                 _newRecord = true;
+                saveSystem.Save();
             }
 
             _isGameSession = true;

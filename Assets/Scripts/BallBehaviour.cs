@@ -1,4 +1,6 @@
+using System.Linq;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 public class BallBehaviour : MonoBehaviour
 {
@@ -19,7 +21,9 @@ public class BallBehaviour : MonoBehaviour
     private Animator _animator;
     private AudioSource _audioSource;
     private float _firstGoalTime;
-    private int _goalTriggersCount;
+
+    private bool[] _goalTriggersCollisions;
+
     private bool _isGoal;
     private Rigidbody _rigidbody;
 
@@ -32,6 +36,7 @@ public class BallBehaviour : MonoBehaviour
         _animationEventHandler = GetComponentInChildren<BallAnimationEventHandler>();
         _audioSource = GetComponent<AudioSource>();
         _rigidbody = GetComponent<Rigidbody>();
+        _goalTriggersCollisions = new bool[4];
     }
 
     private void OnCollisionEnter(Collision other)
@@ -39,8 +44,8 @@ public class BallBehaviour : MonoBehaviour
         switch (other.gameObject.tag)
         {
             case "Floor":
-                if (_animationEventHandler.IsDestructiveFadingOut) return;
-                _audioSource.PlayOneShot(bounceSound, other.relativeVelocity.magnitude);
+                _audioSource.PlayOneShot(bounceSound, other.relativeVelocity.magnitude / 2F);
+                if (!IsThrown || _animationEventHandler.IsDestructiveFadingOut) return;
                 _animator.Play("BallFadeOutSlow");
                 if (!_isGoal) game.Lose();
                 break;
@@ -51,9 +56,6 @@ public class BallBehaviour : MonoBehaviour
                 _audioSource.PlayOneShot(ringSounds[Random.Range(0, ringSounds.Length)],
                     Mathf.Clamp(other.relativeVelocity.magnitude / 3F, 0, 1));
                 break;
-            case "Basketball Column":
-                _audioSource.PlayOneShot(bounceSound, other.relativeVelocity.magnitude);
-                break;
         }
     }
 
@@ -62,21 +64,32 @@ public class BallBehaviour : MonoBehaviour
         switch (other.gameObject.tag)
         {
             case "Goal Trigger":
-                other.gameObject.GetComponent<BoxCollider>().enabled = false;
-                _goalTriggersCount++;
-                if (_goalTriggersCount == goalTriggers.Length)
-                {
-                    game.Goal();
-                    _isGoal = true;
-                }
-
                 switch (other.gameObject.name)
                 {
                     case "Goal Trigger 1":
                         _firstGoalTime = Time.time;
+                        _goalTriggersCollisions[0] = true;
+                        break;
+                    case "Goal Trigger 2":
+                        if (_goalTriggersCollisions[0]) _goalTriggersCollisions[1] = true;
+                        break;
+                    case "Goal Trigger 3":
+                        if (_goalTriggersCollisions[1]) _goalTriggersCollisions[2] = true;
                         break;
                     case "Goal Trigger 4":
                     {
+                        if (_goalTriggersCollisions[2])
+                        {
+                            _goalTriggersCollisions[3] = true;
+                            if (_goalTriggersCollisions.All(x => x))
+                            {
+                                game.Goal();
+                                _isGoal = true;
+                            }
+
+                            _goalTriggersCollisions = new bool[4];
+                        }
+
                         if (Time.time - _firstGoalTime < 0.24F)
                             _audioSource.PlayOneShot(
                                 fastGoalHoopSounds[Random.Range(0, fastGoalHoopSounds.Length - 1)]);
@@ -84,9 +97,10 @@ public class BallBehaviour : MonoBehaviour
                     }
                 }
 
+
                 break;
             case "Side Limiter":
-                if (_animationEventHandler.IsDestructiveFadingOut) return;
+                if (!IsThrown || _animationEventHandler.IsDestructiveFadingOut) return;
                 _animator.Play("BallFadeOutFast");
                 if (!_isGoal) game.Lose();
                 break;
@@ -95,7 +109,6 @@ public class BallBehaviour : MonoBehaviour
 
     public void RestorePosition()
     {
-        Debug.Log("RestorePosition");
         transform.parent = ballSpawner.transform;
         transform.localPosition = new Vector3(0, 0, 0);
         transform.localRotation = new Quaternion(0, 0, 0, 0);
@@ -106,7 +119,7 @@ public class BallBehaviour : MonoBehaviour
             game.PlayCatchSound();
         }
 
-        _goalTriggersCount = 0;
+        _goalTriggersCollisions = new bool[4];
         _isGoal = false;
         IsThrown = false;
         foreach (var goal in goalTriggers) goal.GetComponent<BoxCollider>().enabled = true;
@@ -114,25 +127,23 @@ public class BallBehaviour : MonoBehaviour
 
     public void Throw(Vector2 touchStartPosition, Vector2 touchEndPosition, float timeDifference)
     {
-        Debug.Log(
-            $"Throwing Ball {touchStartPosition}, {touchEndPosition}, {timeDifference} {Screen.width} {Screen.height}");
-
         const float maxHoldingTime = 0.4F;
 
-        if (IsThrown || IsTooClose || _animationEventHandler.IsFadingIn || timeDifference > maxHoldingTime) return;
+        if (IsThrown || IsTooClose || _animationEventHandler.IsFadingIn || timeDifference > maxHoldingTime ||
+            touchStartPosition.y > Screen.height / 1.5F || Time.timeScale == 0 ||
+            touchEndPosition.y <= touchStartPosition.y) return;
 
         IsThrown = true;
         _audioSource.PlayOneShot(throwSound, 0.8F);
 
-        var xImpulse = Mathf.Clamp((touchEndPosition.x - touchStartPosition.x) / Screen.width, 2, -2);
-        var yImpulse = Mathf.Clamp((touchEndPosition.y - touchStartPosition.y) / (Screen.height / 5F), 0, 1);
-        var zImpulse = maxHoldingTime / timeDifference / 3;
+        var xImpulse = Mathf.Clamp((touchEndPosition.x - touchStartPosition.x) / Screen.width / 2F, -2, 2);
+
+        var yImpulse = Mathf.Clamp(2.4F * (touchEndPosition.y - touchStartPosition.y) / Screen.height, 1.5F, 2);
+        var zImpulse = Mathf.Clamp(maxHoldingTime / timeDifference / 4F, 0.5F, 2F);
 
         transform.parent = null;
         _rigidbody.isKinematic = false;
-        // _rigidbody.AddRelativeForce(xImpulse, yImpulse, zImpulse, ForceMode.Impulse);
-        _rigidbody.AddRelativeForce(xImp, yImp, zImp, ForceMode.Impulse);
-        _rigidbody.AddRelativeTorque(zImp, 0, 0, ForceMode.Impulse);
-        // _rigidbody.AddRelativeTorque(zImpulse, 0, xImpulse, ForceMode.Impulse);
+        _rigidbody.AddRelativeForce(xImpulse, yImpulse, zImpulse, ForceMode.Impulse);
+        _rigidbody.AddRelativeTorque(zImpulse, 0, xImpulse, ForceMode.Impulse);
     }
 }
