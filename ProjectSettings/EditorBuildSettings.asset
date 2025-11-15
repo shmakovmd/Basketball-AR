@@ -9,6 +9,9 @@ EditorBuildSettings:
     path: Assets/Scenes/MainMenu.unity
     guid: 88d9ea68f0db5204094e030383346220
   - enabled: 1
-    path: Assets/Scenes/Game.unity
-    guid: 9fc0d4010bbf28b4594072e72b8655ab
+    path: Assets/Scenes/GameFloatingHoop.unity
+    guid: cd05ab006d86aac409986ab747f1cc31
+  - enabled: 1
+    path: Assets/Scenes/GameNetwork.unity
+    guid: 552f27b4875e1cd499e8e54674801a3b
   m_configObjects: {}

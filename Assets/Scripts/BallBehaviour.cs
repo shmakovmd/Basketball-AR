@@ -1,13 +1,11 @@
 using System.Linq;
+using Unity.Netcode;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
 public class BallBehaviour : MonoBehaviour
 {
     [SerializeField] private Transform ballSpawner;
-    [SerializeField] private float xImp;
-    [SerializeField] private float yImp;
-    [SerializeField] private float zImp;
     [SerializeField] private GameObject[] goalTriggers;
     [SerializeField] private GameBehaviour game;
 
@@ -16,6 +14,9 @@ public class BallBehaviour : MonoBehaviour
     [SerializeField] private AudioClip shieldSound;
     [SerializeField] private AudioClip bounceSound;
     [SerializeField] private AudioClip[] ringSounds;
+    [SerializeField] private Animator hoopAnimator;
+    [SerializeField] private Transform basketballHoop;
+    [SerializeField] private Transform gameArea;
 
     private BallAnimationEventHandler _animationEventHandler;
     private Animator _animator;
@@ -25,6 +26,8 @@ public class BallBehaviour : MonoBehaviour
     private bool[] _goalTriggersCollisions;
 
     private bool _isGoal;
+
+    private NetworkObject _networkObject;
     private Rigidbody _rigidbody;
 
     private bool IsThrown { get; set; }
@@ -32,6 +35,7 @@ public class BallBehaviour : MonoBehaviour
 
     private void Start()
     {
+        _networkObject = GetComponent<NetworkObject>();
         _animator = GetComponentInChildren<Animator>();
         _animationEventHandler = GetComponentInChildren<BallAnimationEventHandler>();
         _audioSource = GetComponent<AudioSource>();
@@ -47,7 +51,7 @@ public class BallBehaviour : MonoBehaviour
                 _audioSource.PlayOneShot(bounceSound, other.relativeVelocity.magnitude / 2F);
                 if (!IsThrown || _animationEventHandler.IsDestructiveFadingOut) return;
                 _animator.Play("BallFadeOutSlow");
-                if (!_isGoal) game.Lose();
+                if (!_isGoal && !_animationEventHandler.IsDelayBeforeDestructiveFadingOut) game.Lose();
                 break;
             case "Basketball Shield":
                 _audioSource.PlayOneShot(shieldSound);
@@ -55,6 +59,7 @@ public class BallBehaviour : MonoBehaviour
             case "Basketball Ring":
                 _audioSource.PlayOneShot(ringSounds[Random.Range(0, ringSounds.Length)],
                     Mathf.Clamp(other.relativeVelocity.magnitude / 3F, 0, 1));
+                hoopAnimator.Play("HoopShake");
                 break;
         }
     }
@@ -97,12 +102,11 @@ public class BallBehaviour : MonoBehaviour
                     }
                 }
 
-
                 break;
             case "Side Limiter":
                 if (!IsThrown || _animationEventHandler.IsDestructiveFadingOut) return;
                 _animator.Play("BallFadeOutFast");
-                if (!_isGoal) game.Lose();
+                if (!_isGoal && !_animationEventHandler.IsDelayBeforeDestructiveFadingOut) game.Lose();
                 break;
         }
     }
@@ -137,13 +141,25 @@ public class BallBehaviour : MonoBehaviour
         _audioSource.PlayOneShot(throwSound, 0.8F);
 
         var xImpulse = Mathf.Clamp((touchEndPosition.x - touchStartPosition.x) / Screen.width / 2F, -2, 2);
-
         var yImpulse = Mathf.Clamp(2.4F * (touchEndPosition.y - touchStartPosition.y) / Screen.height, 1.5F, 2);
         var zImpulse = Mathf.Clamp(maxHoldingTime / timeDifference / 4F, 0.5F, 2F);
 
-        transform.parent = null;
+        transform.parent = gameArea.transform;
         _rigidbody.isKinematic = false;
         _rigidbody.AddRelativeForce(xImpulse, yImpulse, zImpulse, ForceMode.Impulse);
-        _rigidbody.AddRelativeTorque(zImpulse, 0, xImpulse, ForceMode.Impulse);
+        _rigidbody.AddRelativeTorque(zImpulse * 2, 0, xImpulse * 2, ForceMode.Impulse);
+    }
+
+    public void MoveInstantToHoop()
+    {
+        IsThrown = true;
+
+        if (game.IsNetworkGame)
+            _networkObject.TrySetParent(gameArea.transform);
+
+        transform.parent = gameArea.transform;
+        _rigidbody.isKinematic = false;
+        transform.position = new Vector3(basketballHoop.position.x, basketballHoop.position.y + 0.1F,
+            basketballHoop.position.z + 0.2F);
     }
 }
